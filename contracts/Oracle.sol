@@ -103,7 +103,7 @@ contract Oracle {
     }
 
 	// start of oracle
-	function commitPrice(uint priceInWei, uint timeInSecond, string[] memory delegatedStakes) 
+	function commitPrice(uint priceInWei, uint timeInSecond, DelegateStake[] memory delegatedStakes) 
 		public 
 		isPriceFeed()
 		isOpenForCommit(timeInSecond) 
@@ -113,14 +113,14 @@ contract Oracle {
 		stakedPrice[msg.sender] = Price(priceInWei,timeInSecond);
 
 		for(uint i = 0; i<delegatedStakes.length; i++){
-			DelegateStake stake = delegatedStakes[i];
+			DelegateStake memory stake = delegatedStakes[i];
 
 			if(
 				stake.timeInSecond == timeInSecond &&
 				stake.stakes.add(stakedAmt[stake.addr]) <= stakeAmts[stake.addr] &&
 				verify(
 				stake.addr, 
-				keccak256(abi.encodePacked(concat(bytes32(stake.timeInSecond), bytes32(stake.stakes)))),
+				keccak256(abi.encodePacked(concat(string(bytes32(stake.timeInSecond)), string(bytes32(stake.stakes))))),
 				stake.v,
 				stake.r,
 				stake.s				

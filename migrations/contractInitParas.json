@@ -5,7 +5,9 @@
 		"tokenSymbol": "DOT"
 	},
 	"Oracle": {
-		"name": "ETH-USD"
+		"name": "ETH-USD",
+		"pd": 3600,
+		"openWindow": 60
 
 	}
 }
