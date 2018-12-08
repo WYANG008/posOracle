@@ -124,6 +124,21 @@ contract Oracle {
         return ecrecover(hash, v, r, s) == addr;
     }
 
+	function stake(uint amtInWei) public {
+		address sender = msg.sender;
+		require(amtInWei <= balanceOf[sender]);
+		
+		balanceOf[sender] = balanceOf[sender] - amtInWei;
+		totalStakedAmt[sender] = totalStakedAmt[sender] + amtInWei;
+	}
+
+	function unStake(uint amtInWei) public {
+		address sender = msg.sender;
+		require(amtInWei <= totalStakedAmt[sender]);
+		balanceOf[sender] = balanceOf[sender] + amtInWei;
+		totalStakedAmt[sender] = totalStakedAmt[sender] - amtInWei;
+	}
+
 // start of oracle
 	function commitPrice(uint priceInWei, uint timeInSecond, address[] addrs, uint[2][] timeStakeOfVoters, uint8[] vList, bytes32[2][] rsList) 
 		public 
