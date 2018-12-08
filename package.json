@@ -1,0 +1,33 @@
+{
+  "name": "pos-oracle",
+  "version": "1.0.0",
+  "private": true,
+  "description": "pos oracle",
+  "author": "Weitao",
+  "scripts": {
+    "test": "cross-env GANACHE_PORT=8550 truffle.cmd test",
+    "coverage": "cross-env SOLIDITY_COVERAGE=true GANACHE_PORT=8555 solidity-coverage",
+    "clean": "rimraf build",
+    "start": "ganache-cli --defaultBalanceEther 1000 --gasLimit 7990000 --port 8550 -a 20",
+    "startCoverage": "testrpc-sc --defaultBalanceEther 1000 --gasLimit 0xfffffffffff --port 8555 -a 20",
+    "copyAbi": "copyfiles -f .\\build\\contracts\\Custodian.json .\\build\\contracts\\DUO.json .\\build\\contracts\\TokenA.json .\\build\\contracts\\TokenB.json ..\\duo-admin\\src\\static\\",
+    "deploy": "cross-env CONTRACT_TYPE=BTV MATURITY=0 truffle.cmd migrate --reset --compile-all",
+    "deployKovan": "cross-env CONTRACT_TYPE=MZT MATURITY=M19 truffle.cmd migrate --reset --compile-all --network kovan",
+    "deployRopsten": "npm run clean && truffle.cmd migrate --reset --compile-all --network ropsten",
+    "deployLive": "npm run clean && truffle.cmd migrate --reset --compile-all --network live"
+  },
+  "devDependencies": {
+    "copyfiles": "^2.1.0",
+    "cross-env": "^5.2.0",
+    "eslint": "^5.9.0",
+    "eslint-plugin-mocha": "^5.2.0",
+    "ganache-cli": "^6.2.3",
+    "rimraf": "^2.6.2",
+    "solidity-coverage": "^0.5.11",
+    "solium": "^1.1.8",
+    "truffle": "5.0.0-beta.2"
+  },
+  "dependencies": {
+    "web3": "^1.0.0-beta.36"
+  }
+}
