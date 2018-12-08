@@ -37,8 +37,12 @@ contract Oracle {
 	mapping (address => uint) public stakeForCurrentRound;
 	mapping (address => Price) public stakedPrice;
 
-	address[] addressCommitted;
+	string public name;
+	string public symbol;
+	uint public totalSupply;
+	uint8 public decimals = 18;
 
+	address[] addressCommitted;
 
 	/*
      * Modifier
@@ -68,15 +72,21 @@ contract Oracle {
      */
 	constructor(
 		uint pd,
-		uint openWindow
+		uint openWindow,
+		string memory tokenName,
+		string memory tokenSymbol,
+		uint totalSupplyInWei
 		) 
 		public
 	{
 		period = pd;
 		openWindowTimeInSecond = openWindow;
 		whiteListFeeders[msg.sender] = 1;
+		name = tokenName;								   // Set the name for display purposes
+		symbol = tokenSymbol;							   // Set the symbol for display purposes
+		totalSupply = totalSupplyInWei;
+		balanceOf[msg.sender] = totalSupplyInWei;
 	}
-
 
 	/*
      * Public Functions
@@ -98,8 +108,6 @@ contract Oracle {
 		emit Inception(inceptionTimeInSecond, msg.sender);
 		return true;
 	}
-
-	
 
 	function verify(address addr, bytes32 hash, uint8 v, bytes32 r, bytes32 s) internal pure returns(bool) {
         return ecrecover(hash, v, r, s) == addr;
@@ -226,33 +234,28 @@ contract Oracle {
 		return true;
 	}
 
-	function determineAddress(address from) internal view returns (address) {
-		return 
-			msg.sender == tokenAddress? from : msg.sender;
-	}
-
-	function transfer(address from, address to, uint tokens)
+	function transfer(address to, uint tokens)
 		public
 		returns (bool success) 
 	{
-		return transferInternal( determineAddress(from), to, tokens);
+		return transferInternal( msg.sender, to, tokens);
 	}
 
-	function transferFrom( address spender, address from, address to, uint tokens) 
+	function transferFrom( address from, address to, uint tokens) 
 		public 
 		returns (bool success) 
 	{
-		address spenderToUse = determineAddress( spender);
+		address spenderToUse = msg.sender;
 		require(tokens <= allowance[from][spenderToUse]);	 // Check allowance
 		allowance[from][spenderToUse] = allowance[from][spenderToUse].sub(tokens);
 		return transferInternal( from, to, tokens);
 	}
 
-	function approve(address sender, address spender, uint tokens) 
+	function approve( address spender, uint tokens) 
 		public 
 		returns (bool success) 
 	{
-		address senderToUse = determineAddress( sender);
+		address senderToUse = msg.sender;
 		allowance[senderToUse][spender] = tokens;
 		emit Approval(senderToUse, spender, tokens);
 		return true;

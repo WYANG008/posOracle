@@ -1,7 +1,7 @@
 const web3 = require('web3');
 const SafeMath = artifacts.require('./SafeMath.sol');
 const Oracle = artifacts.require('./Oracle.sol');
-const DOT = artifacts.require('./DOT.sol');
+// const DOT = artifacts.require('./DOT.sol');
 const InitParas = require('./contractInitParas.json');
 const DOTinit = InitParas['DOT'];
 const OracleInit = InitParas['Oracle'];
@@ -22,16 +22,9 @@ module.exports = async (deployer, network, accounts) => {
 		Oracle,
 		OracleInit.pd,
 		OracleInit.openWindow,
-		{
-			from: creator
-		}
-	);
-
-	await deployer.deploy(
-		DOT,
 		DOTinit.tokenName,
 		DOTinit.tokenSymbol,
-		Oracle.address,
+		web3.utils.toWei(DOTinit.initSupply, 'ether'),
 		{
 			from: creator
 		}
