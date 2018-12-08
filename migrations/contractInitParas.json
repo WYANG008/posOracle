@@ -6,8 +6,8 @@
 	},
 	"Oracle": {
 		"name": "ETH-USD",
-		"pd": 3600,
-		"openWindow": 60
+		"pd": 300,
+		"openWindow": 30
 
 	}
 }
