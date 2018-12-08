@@ -1,4 +1,4 @@
-pragma solidity ^0.5.1;
+pragma solidity ^0.4.24;
 pragma experimental ABIEncoderV2;
 import { SafeMath } from "./common/SafeMath.sol";
 
@@ -13,7 +13,15 @@ contract Oracle {
 	struct Price {
 		uint priceInWei;
 		uint timeInSecond;
+	}
+
+	struct DelegateStake{
+		address addr;
+		uint timeInSecond;
 		uint stakes;
+		uint8 v;
+		bytes32 r;
+		bytes32 s;
 	}
 	bool public open = false;
 	address public tokenAddress;
@@ -24,6 +32,10 @@ contract Oracle {
 	mapping (address => uint) public whiteListFeeders;
 	mapping(address => uint) public balanceOf;
 	mapping (address => mapping (address => uint)) public allowance;
+	mapping (address => uint) public stakeAmts;
+	mapping (address => uint) public stakedAmt;
+	mapping (address => uint) public stakeForCurrentRound;
+	mapping (address => Price) public stakedPrice;
 
 	/*
      * Modifier
@@ -84,18 +96,39 @@ contract Oracle {
 		return true;
 	}
 
-	function verify(address p, bytes32 hash, uint8 v, bytes32 r, bytes32 s) internal returns(bool) {
-        return ecrecover(hash, v, r, s) == p;
+	
+
+	function verify(address addr, bytes32 hash, uint8 v, bytes32 r, bytes32 s) public returns(bool) {
+        return ecrecover(hash, v, r, s) == addr;
     }
 
 	// start of oracle
-	function commitPrice(uint priceInWei, uint timeInSecond, string[] memory signatures) 
+	function commitPrice(uint priceInWei, uint timeInSecond, string[] memory delegatedStakes) 
 		public 
 		isPriceFeed()
 		isOpenForCommit(timeInSecond) 
 		returns (bool success)
 	{	
 
+		stakedPrice[msg.sender] = Price(priceInWei,timeInSecond);
+
+		for(uint i = 0; i<delegatedStakes.length; i++){
+			DelegateStake stake = delegatedStakes[i];
+
+			if(
+				stake.timeInSecond == timeInSecond &&
+				stake.stakes.add(stakedAmt[stake.addr]) <= stakeAmts[stake.addr] &&
+				verify(
+				stake.addr, 
+				keccak256(abi.encodePacked(concat(bytes32(stake.timeInSecond), bytes32(stake.stakes)))),
+				stake.v,
+				stake.r,
+				stake.s				
+			)){
+				stakeForCurrentRound[msg.sender] = stakeForCurrentRound[msg.sender].add(stake.stakes);
+				stakedAmt[stake.addr] = stakedAmt[stake.addr].add(stake.stakes);
+			}
+		}
 
 		return true;
 	}
@@ -109,7 +142,19 @@ contract Oracle {
 			return c;
 		}
 	}
+
 	// end of oracle
+
+	function concat(string memory _a, string memory  _b) public returns (string){
+        bytes memory bytes_a = bytes(_a);
+        bytes memory bytes_b = bytes(_b);
+        string memory length_ab = new string(bytes_a.length + bytes_b.length);
+        bytes memory bytes_c = bytes(length_ab);
+        uint k = 0;
+        for (uint i = 0; i < bytes_a.length; i++) bytes_c[k++] = bytes_a[i];
+        for (i = 0; i < bytes_b.length; i++) bytes_c[k++] = bytes_b[i];
+        return string(bytes_c);
+    }
 
 	/*
      * ERC token functions

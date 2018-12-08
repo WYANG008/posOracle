@@ -1,4 +1,4 @@
-pragma solidity ^0.5.1;
+pragma solidity ^0.4.24;
 import { SafeMath } from "./common/SafeMath.sol";
 
 
