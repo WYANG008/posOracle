@@ -21,7 +21,7 @@ module.exports = async (deployer, network, accounts) => {
 	await deployer.deploy(
 		Oracle,
 		OracleInit.pd,
-		OracleInit.openWindow
+		OracleInit.openWindow,
 		{
 			from: creator
 		}
