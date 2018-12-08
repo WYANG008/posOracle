@@ -33,6 +33,7 @@ contract Oracle {
 	mapping(address => uint) public balanceOf;
 	mapping (address => mapping (address => uint)) public allowance;
 	mapping (address => uint) public totalStakedAmt; // for every one
+	uint skipNum = 0;
 
 
 	uint public totalVotersForCurrentRound;
@@ -119,6 +120,21 @@ contract Oracle {
 		return true;
 	}
 
+	function stake(uint amtInWei) public {
+		address sender = msg.sender;
+		require(amtInWei <= balanceOf[sender]);
+		
+		balanceOf[sender] = balanceOf[sender] - amtInWei;
+		totalStakedAmt[sender] = totalStakedAmt[sender] + amtInWei;
+	}
+
+	function unStake(uint amtInWei) public {
+		address sender = msg.sender;
+		require(amtInWei <= totalStakedAmt[sender]);
+		balanceOf[sender] = balanceOf[sender] + amtInWei;
+		totalStakedAmt[sender] = totalStakedAmt[sender] - amtInWei;
+	}
+
 	function verify(address addr, bytes32 hash, uint8 v, bytes32 r, bytes32 s) internal pure returns(bool) {
         return ecrecover(hash, v, r, s) == addr;
     }
@@ -131,6 +147,7 @@ contract Oracle {
 	{	
 		address sender = msg.sender;
 		uint blkTime = block.timestamp;
+
 		if(
 			lastPriceTimeInSecond.add(period).add(openWindowTimeInSecond) >= blkTime 
 			&& lastPriceTimeInSecond.add(period).sub(openWindowTimeInSecond) <= blkTime
