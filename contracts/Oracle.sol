@@ -37,6 +37,9 @@ contract Oracle {
 	mapping (address => uint) public stakeForCurrentRound;
 	mapping (address => Price) public stakedPrice;
 
+	address[] addressCommitted;
+
+
 	/*
      * Modifier
      */
@@ -102,7 +105,7 @@ contract Oracle {
         return ecrecover(hash, v, r, s) == addr;
     }
 
-	// start of oracle
+// start of oracle
 	function commitPrice(uint priceInWei, uint timeInSecond, DelegateStake[] memory delegatedStakes) 
 		public 
 		isPriceFeed()
@@ -152,6 +155,25 @@ contract Oracle {
 			bytesStringTrimmed[j] = bytesString[j];
 		}
 		return string(bytesStringTrimmed);
+	}
+
+	function calcFinalPrice( ) view internal returns (uint)  {
+		uint weightedPricesSum = 0;
+		uint weightsSum = 0;
+		// mapping(address => uint) deltaT;
+		for(uint i = 0; i<addressCommitted.length; i++)
+		{
+			address addr = addressCommitted[i];
+			uint priceInWei = stakedPrice[addr].priceInWei;
+			uint timeInSecond = stakedPrice[addr].timeInSecond;
+			uint stakeAmt = stakedAmt[addr];
+			uint weight = stakeAmt/timeInSecond; //wanghe need to convert to wei?
+			weightedPricesSum.add(weight * priceInWei);
+			weightsSum.add(weight);
+		}
+
+		uint finalPrice = weightedPricesSum / weightsSum; // wanghe need to convert to wei?
+		return finalPrice;
 	}
 
 	function getMedian(uint a, uint b, uint c) internal pure returns (uint) {
