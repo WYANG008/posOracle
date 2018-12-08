@@ -8,7 +8,7 @@
 	//"eslint.run": "onSave"
 	"solidity.validationDelay": 500,
 	"solidity.enabledAsYouTypeCompilationErrorCheck": true,
-	"solidity.compileUsingRemoteVersion": "v0.4.24+commit.e67f0147",
+	"solidity.compileUsingRemoteVersion": "v0.4.24%2Bcommit.e67f0147",
 	"solidity.compileUsingLocalVersion": "..\\v0.4.24+commit.e67f0147",
 	"solidity.soliumRules": {
 		"imports-on-top": 0,

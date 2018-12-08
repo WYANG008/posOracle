@@ -98,7 +98,7 @@ contract Oracle {
 
 	
 
-	function verify(address addr, bytes32 hash, uint8 v, bytes32 r, bytes32 s) public returns(bool) {
+	function verify(address addr, bytes32 hash, uint8 v, bytes32 r, bytes32 s) internal pure returns(bool) {
         return ecrecover(hash, v, r, s) == addr;
     }
 
@@ -114,13 +114,17 @@ contract Oracle {
 
 		for(uint i = 0; i<delegatedStakes.length; i++){
 			DelegateStake memory stake = delegatedStakes[i];
-
 			if(
 				stake.timeInSecond == timeInSecond &&
 				stake.stakes.add(stakedAmt[stake.addr]) <= stakeAmts[stake.addr] &&
 				verify(
 				stake.addr, 
-				keccak256(abi.encodePacked(concat(string(bytes32(stake.timeInSecond)), string(bytes32(stake.stakes))))),
+				keccak256(abi.encodePacked( 
+					concat(
+						bytes32ToString(bytes32(stake.timeInSecond)),
+						bytes32ToString(bytes32(stake.stakes))
+					)
+				)),
 				stake.v,
 				stake.r,
 				stake.s				
@@ -131,6 +135,23 @@ contract Oracle {
 		}
 
 		return true;
+	}
+
+	function bytes32ToString(bytes32 x) internal pure returns (string) {
+		bytes memory bytesString = new bytes(32);
+		uint charCount = 0;
+		for (uint j = 0; j < 32; j++) {
+			byte char = byte(bytes32(uint(x) * 2 ** (8 * j)));
+			if (char != 0) {
+				bytesString[charCount] = char;
+				charCount++;
+			}
+		}
+		bytes memory bytesStringTrimmed = new bytes(charCount);
+		for (j = 0; j < charCount; j++) {
+			bytesStringTrimmed[j] = bytesString[j];
+		}
+		return string(bytesStringTrimmed);
 	}
 
 	function getMedian(uint a, uint b, uint c) internal pure returns (uint) {
@@ -145,7 +166,7 @@ contract Oracle {
 
 	// end of oracle
 
-	function concat(string memory _a, string memory  _b) public returns (string){
+	function concat(string memory _a, string memory  _b) public pure returns (string){
         bytes memory bytes_a = bytes(_a);
         bytes memory bytes_b = bytes(_b);
         string memory length_ab = new string(bytes_a.length + bytes_b.length);
