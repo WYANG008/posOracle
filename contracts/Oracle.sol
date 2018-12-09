@@ -13,43 +13,58 @@ contract Oracle {
 	struct Price {
 		uint priceInWei;
 		uint timeInSecond;
-		uint blockTime;
+		uint committedAt;
 	}
 
 	struct DelegateStake{
 		address addr;
 		uint timeInSecond;
-		uint stakes;
+		uint stake;
 		uint8 v;
 		bytes32 r;
 		bytes32 s;
 	}
+	uint public inceptionTimeInSecond;
+	uint public inceptionPriceInWei;
 	uint public period;
 	uint public mingRatio = 1;
 	uint public openWindowTimeInSecond;
+
 	uint public lastPriceTimeInSecond;
 	uint public lastPrice;
-	uint public inceptionTimeInSecond;
-	
+
+	// 
 	mapping(address => uint) public balanceOf;
-	mapping (address => mapping (address => uint)) public allowance;
-	mapping (address => uint) public totalStakedAmt; // for every one
+	mapping(address => mapping (address => uint)) public allowance;
+	mapping(address => uint) public userStakedAmtInWei; // for every one
 
 
-	uint public totalVotersForCurrentRound;
+	// uint public totalVotersForCurrentRound;
+
+	// voters
 	address[] votersInCurrentRound;
 	mapping(address => bool) hasVotedInCurrentRound;
-	mapping(address => uint) public votesForCurrentRound; //voter => votes
+	mapping(address => uint) public votedStateInCurrentRound; //voter => votes
 
-	uint public totalFeeders;
-	address[] feederLists;
-	mapping (address => Price) public committedPrice;
-	mapping(uint => address) deltaPriceToAddr;
-	mapping (address => bool) public isWhiteListFeeders;
-	mapping(address => bool) public hasCommitted;
-	mapping(address => uint) public receivedVotes; //committer => votesReciverd
-	address[] addressCommitted;
-	uint[] addressDelta;
+	// uint public totalFeeders;
+	// committers
+	mapping (address => bool) public isWhiteListCommitter;
+	address[] committerList;
+	address[] commiitersInCurrentRound;
+	mapping(address => Price) public committedPriceInCurrentRound;
+
+	uint[] priceDiffInCurrentRound;
+	uint[] sortedPriceDiffArray;
+	address[] winnersInCurrentRound;
+	mapping(address => uint) committerPriceDiffInCurrentRound;
+	// mapping(uint => address) deltaPriceToAddr;
+	
+	mapping(address => bool) public hasCommittedInCurrentRound;
+	mapping(address => uint) public receivedVotesInCurrentRound; 
+	
+	//committer => votesReciverd
+	// address[] addressCommitted;
+	// uint[] addressDelta;
 
 	uint constant WEI_DEOMINATOR = 1000000000000000000;
 	uint constant BP_DENOMINATOR = 10000;
@@ -59,13 +74,11 @@ contract Oracle {
 	uint public totalSupply;
 	uint8 public decimals = 18;
 
-
-
 	/*
      * Modifier
      */
 	modifier isPriceFeed() {
-		require(isWhiteListFeeders[msg.sender] == true);
+		require(isWhiteListCommitter[msg.sender] == true);
 		_;
 	}
 
@@ -75,7 +88,8 @@ contract Oracle {
 	event Transfer(address indexed from, address indexed to, uint value);
 	event Approval(address indexed tokenOwner, address indexed spender, uint tokens);
 	event CommitPrice(uint indexed priceInWei, uint indexed timeInSecond, address sender);
-	event Inception(uint inceptionTime, address startAddr);
+	event Inception(uint inceptionTime, uint inceptionPriceInWei, address startAddr);
+	event AcceptPrice(uint priceInWei, uint timeInSecond, address winner);
 
 	/*
      * Constructor
@@ -89,13 +103,15 @@ contract Oracle {
 		) 
 		public
 	{
+		address sender = msg.sender;
 		period = pd;
 		openWindowTimeInSecond = openWindow;
-		isWhiteListFeeders[msg.sender] = true;
+		isWhiteListCommitter[sender] = true;
 		name = tokenName;								   // Set the name for display purposes
 		symbol = tokenSymbol;							   // Set the symbol for display purposes
 		totalSupply = totalSupplyInWei;
-		balanceOf[msg.sender] = totalSupplyInWei;
+		balanceOf[sender] = totalSupplyInWei;
+		committerList.push(sender);
 	}
 
 	/*
@@ -103,6 +119,7 @@ contract Oracle {
      */
 	function startOracle(
 		uint startTime,
+		uint startPrice,
 		address[] memory whiteList
 	)
 		public 
@@ -110,64 +127,67 @@ contract Oracle {
 		returns (bool success) 
 	{
 		inceptionTimeInSecond = startTime;
+		inceptionPriceInWei = startPrice;
 		lastPriceTimeInSecond = startTime;
 		for(uint i = 0;  i < whiteList.length; i++ ) {
-			isWhiteListFeeders[whiteList[i]] = true;
-			feederLists.push(whiteList[i]);
-			totalFeeders +=1;
+			if(!isWhiteListCommitter[whiteList[i]]){
+				isWhiteListCommitter[whiteList[i]] = true;
+				committerList.push(whiteList[i]);
+			}
 		}
-		emit Inception(inceptionTimeInSecond, msg.sender);
+		emit Inception(startTime, startPrice, msg.sender);
 		return true;
 	}
 
-	function verify(address addr, bytes32 hash, uint8 v, bytes32 r, bytes32 s) internal pure returns(bool) {
-        return ecrecover(hash, v, r, s) == addr;
-    }
-
-	function stake(uint amtInWei) public {
+	function stake(uint amtInWei) public returns(bool){
 		address sender = msg.sender;
 		require(amtInWei <= balanceOf[sender]);
-		
 		balanceOf[sender] = balanceOf[sender] - amtInWei;
-		totalStakedAmt[sender] = totalStakedAmt[sender] + amtInWei;
+		userStakedAmtInWei[sender] = userStakedAmtInWei[sender] + amtInWei;
+		return true;
 	}
 
-	function unStake(uint amtInWei) public {
+	function unStake(uint amtInWei) public returns(bool){
 		address sender = msg.sender;
-		require(amtInWei <= totalStakedAmt[sender]);
+		require(amtInWei <= userStakedAmtInWei[sender]);
 		balanceOf[sender] = balanceOf[sender] + amtInWei;
-		totalStakedAmt[sender] = totalStakedAmt[sender] - amtInWei;
+		userStakedAmtInWei[sender] = userStakedAmtInWei[sender] - amtInWei;
+		return true;
 	}
 
-// start of oracle
-	function commitPrice(uint priceInWei, uint timeInSecond, address[] addrs, uint[2][] timeStakeOfVoters, uint8[] vList, bytes32[2][] rsList) 
+	function commitPrice(
+		uint priceInWei, 
+		uint timeInSecond, 
+		address[] voterAddrs, 
+		uint[2][] timeStakeOfVoters, 
+		uint8[] vList, 
+		bytes32[2][] rsList
+	) 
 		public 
 		isPriceFeed()
 		returns (bool success)
 	{	
-		// address sender = msg.sender;
-		// uint blkTime = block.timestamp;
+		require(!hasCommittedInCurrentRound[msg.sender]);
 		if(
 			lastPriceTimeInSecond.add(period).add(openWindowTimeInSecond) >= timeInSecond
 			&& lastPriceTimeInSecond.add(period).sub(openWindowTimeInSecond) <= timeInSecond
 		)
 		{
-			committedPrice[msg.sender] = Price( priceInWei,timeInSecond,block.timestamp);
-			addressCommitted.push(msg.sender);
-			hasCommitted[msg.sender] = true;
+			// within commit window
+			committedPriceInCurrentRound[msg.sender] = Price(priceInWei, timeInSecond, block.timestamp);
+			hasCommittedInCurrentRound[msg.sender] = true;
+			commiitersInCurrentRound.push(msg.sender);
 
-			for(uint i = 0; i<timeStakeOfVoters[0].length; i++){
-				// DelegateStake memory stake = delegatedStakes[i];
-
+			for(uint i = 0; i<voterAddrs.length; i++){
 				if(
 					timeStakeOfVoters[0][i]== timeInSecond &&
-					votesForCurrentRound[addrs[i]] <= totalStakedAmt[addrs[i]] &&
+					votedStateInCurrentRound[voterAddrs[i]] <= userStakedAmtInWei[voterAddrs[i]] &&
 					verify(
-						addrs[i], 
+						voterAddrs[i], 
 						keccak256(abi.encodePacked( 
 							concat(
 								bytes32ToString(bytes32(timeStakeOfVoters[0][i])),
-								bytes32ToString(bytes32(timeStakeOfVoters[0][i]))
+								bytes32ToString(bytes32(timeStakeOfVoters[1][i]))
 							)
 						)),
 						vList[i],
@@ -175,84 +195,92 @@ contract Oracle {
 						rsList[1][i]
 					)
 				){
-					votesForCurrentRound[addrs[i]] = votesForCurrentRound[addrs[i]].add(timeStakeOfVoters[1][i]);
-					if(!hasVotedInCurrentRound[addrs[i]]) {
-						totalVotersForCurrentRound+=1;
-						hasVotedInCurrentRound[addrs[i]] = true;
-						votersInCurrentRound[totalVotersForCurrentRound] = addrs[i];
+					votedStateInCurrentRound[voterAddrs[i]] = votedStateInCurrentRound[voterAddrs[i]].add(timeStakeOfVoters[1][i]);
+					if(!hasVotedInCurrentRound[voterAddrs[i]]) {
+						hasVotedInCurrentRound[voterAddrs[i]] = true;
+						votersInCurrentRound.push(voterAddrs[i]);
 					}
-					
-					receivedVotes[msg.sender] = receivedVotes[msg.sender].add(timeStakeOfVoters[1][i]);
+					receivedVotesInCurrentRound[msg.sender] = receivedVotesInCurrentRound[msg.sender].add(timeStakeOfVoters[1][i]);
 				}
 			}
 
 			return true;	
 		} else if (lastPriceTimeInSecond.add(period).add(openWindowTimeInSecond) < block.timestamp ){
 			// round end, settle
-			
-			uint finalPriceInWei = calcFinalPrice();
-			lastPrice = finalPriceInWei;
-			// uint size = addressCommitted.length;
-			
-			// uint[] storage prices = [];
-			for(uint j = 0;j <addressCommitted.length; j++){
-				address addr = addressCommitted[i];
-				uint price = committedPrice[addr].priceInWei;
-				uint delta = (price >= finalPriceInWei)? (price - finalPriceInWei): (finalPriceInWei - price);
-				addressDelta.push(delta);
-				deltaPriceToAddr[delta] = addr;
-			}
-
-			uint[] memory sortedDeltaArray = sort(addressDelta);
-			balanceOf[deltaPriceToAddr[sortedDeltaArray[0]]] = 
-				balanceOf[deltaPriceToAddr[sortedDeltaArray[0]]]
-				.add(totalSupply * mingRatio / BP_DENOMINATOR);
-
-			
-			startNextRound();
-
+			return terminateRound();
 		}
+		return true;
 	}
 
-	function startNextRound() {
+	function terminateRound() internal returns(bool) {
+		lastPrice = calcFinalPrice();
+		
+		for(uint j = 0;j < commiitersInCurrentRound.length; j++) {
+			address committer = commiitersInCurrentRound[j];
+			uint price = committedPriceInCurrentRound[committer].priceInWei;
+			uint priceDiff = (price >= lastPrice)? (price - lastPrice): (lastPrice - price);
+			priceDiffInCurrentRound.push(priceDiff);
+			committerPriceDiffInCurrentRound[committer] = priceDiff;
+		}
+
+		sortedPriceDiffArray = sort(priceDiffInCurrentRound);
+		
+		for(uint k = 0; k< commiitersInCurrentRound.length; k++){
+			if(committerPriceDiffInCurrentRound[commiitersInCurrentRound[k]] == sortedPriceDiffArray[0]){
+				winnersInCurrentRound.push(commiitersInCurrentRound[k]);
+			}
+		}
+		for(uint m = 0; m< winnersInCurrentRound.length; m++){
+			balanceOf[winnersInCurrentRound[m]] = balanceOf[winnersInCurrentRound[m]].add(totalSupply * mingRatio / BP_DENOMINATOR / winnersInCurrentRound.length);
+		}
+
+		startNextRound();
+		return false;
+
+	}
+
+	function startNextRound() internal {
 		lastPriceTimeInSecond = lastPriceTimeInSecond.add(period);
-
-		for(uint i = 0;i <totalVotersForCurrentRound; i ++) {
-			hasVotedInCurrentRound[votersInCurrentRound[i]] = false;
-			votesForCurrentRound[votersInCurrentRound[i]] = 0;
-			votersInCurrentRound[i]=address(0);
+		for(uint i = 0; i< votersInCurrentRound.length; i++){
+			address voter = votersInCurrentRound[i];
+			hasVotedInCurrentRound[voter] = false;
+			votedStateInCurrentRound[voter] = 0;
 		}
 
-		for(uint j = 0; j< totalFeeders; j++){
-			hasCommitted[feederLists[j]] = false;
-			receivedVotes[feederLists[j]] = 0;
-
+		for(uint j = 0; j<commiitersInCurrentRound.length; j++ ){
+			address committer = commiitersInCurrentRound[j];
+			committerPriceDiffInCurrentRound[committer] = 0;
+			hasCommittedInCurrentRound[committer] = false;
+			receivedVotesInCurrentRound[committer] = 0;
 
 		}
+		delete votersInCurrentRound;
+		delete commiitersInCurrentRound;
+		delete priceDiffInCurrentRound;
+		delete sortedPriceDiffArray;
+		delete winnersInCurrentRound;
 	}
 
 	function calcFinalPrice() view internal returns (uint)  {
 		uint currentTime = lastPriceTimeInSecond + period;
 		uint weightedPricesSum = 0;
 		uint weightsSum = 0;
-		// mapping(address => uint) deltaT;
-		for(uint i = 0; i<addressCommitted.length; i++)
+		for(uint i = 0; i<commiitersInCurrentRound.length; i++)
 		{
-			address addr = addressCommitted[i];
-			uint priceInWei = committedPrice[addr].priceInWei;
-			uint blockTime = committedPrice[addr].blockTime;
-			uint stakeAmt = totalStakedAmt[addr];
-			uint deltaTime = (blockTime >= currentTime)? (blockTime - currentTime): (currentTime - blockTime);
-			uint weight = stakeAmt.add(receivedVotes[addr])/deltaTime; //wanghe need to convert to wei?
+			address committer = commiitersInCurrentRound[i];
+			uint priceInWei = committedPriceInCurrentRound[committer].priceInWei;
+			uint committedAt = committedPriceInCurrentRound[committer].committedAt;
+			uint totalStakeAmt = userStakedAmtInWei[committer].add(receivedVotesInCurrentRound[committer]);
+			uint deltaTime = (committedAt >= currentTime)? (committedAt - currentTime + 1): (currentTime - committedAt + 1);
+			uint weight = totalStakeAmt/deltaTime; //wanghe need to convert to wei?
 			weightedPricesSum = weightedPricesSum.add(weight * priceInWei);
 			weightsSum = weightsSum.add(weight);
 		}
-
-		uint finalPrice = weightedPricesSum / weightsSum; // wanghe need to convert to wei?
-		return finalPrice;
+		uint finalPriceInWei = weightedPricesSum / weightsSum; // wanghe need to convert to wei?
+		return finalPriceInWei;
 	}
 
-
+	// start of utils
 	function bytes32ToString(bytes32 x) internal pure returns (string) {
 		bytes memory bytesString = new bytes(32);
 		uint charCount = 0;
@@ -270,8 +298,6 @@ contract Oracle {
 		return string(bytesStringTrimmed);
 	}
 
-	
-	// end of oracle
 
 	function concat(string memory _a, string memory  _b) public pure returns (string){
         bytes memory bytes_a = bytes(_a);
@@ -308,6 +334,11 @@ contract Oracle {
         if (i < right)
             quickSort(arr, i, right);
     }
+
+	function verify(address addr, bytes32 hash, uint8 v, bytes32 r, bytes32 s) internal pure returns(bool) {
+        return ecrecover(hash, v, r, s) == addr;
+    }
+	// end of utils
 
 	/*
      * ERC token functions
